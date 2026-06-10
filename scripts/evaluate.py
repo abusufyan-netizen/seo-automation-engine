@@ -3,13 +3,10 @@ import sys
 import hashlib
 import argparse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from scripts.utils import load_env, init_db, request_ollama
+from scripts.utils import load_env, init_db, request_ai_engine
 
 def evaluate_content(limit):
     load_env()
-    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
-    ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
-
     conn = init_db()
     cursor = conn.cursor()
     
@@ -25,7 +22,7 @@ def evaluate_content(limit):
             continue
 
         with open(filepath, "r", encoding="utf-8") as f:
-            page_text = f.read()[:4000] # Safe contextual slice limitations
+            page_text = f.read()[:4000]
 
         prompt = f"""
         Analyze this web page text for content density and semantic clarity:
@@ -40,8 +37,8 @@ def evaluate_content(limit):
         {{"topic_depth_grade": <value>, "entity_alignment_score": <value>}}
         """
 
-        print(f"🤖 Evaluating semantic attributes for: {url}")
-        res = request_ollama(prompt, ollama_url, ollama_model)
+        print(f" Evaluating semantic attributes for: {url}")
+        res = request_ai_engine(prompt)
         if res and "topic_depth_grade" in res and "entity_alignment_score" in res:
             depth = max(1.0, min(10.0, float(res["topic_depth_grade"])))
             align = max(1.0, min(10.0, float(res["entity_alignment_score"])))
