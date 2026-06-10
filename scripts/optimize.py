@@ -4,13 +4,10 @@ import json
 import hashlib
 import argparse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from scripts.utils import load_env, init_db, request_ollama
+from scripts.utils import load_env, init_db, request_ai_engine
 
 def generate_schema(threshold):
     load_env()
-    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
-    ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
-
     conn = init_db()
     cursor = conn.cursor()
     
@@ -39,7 +36,7 @@ def generate_schema(threshold):
         """
 
         print(f"📦 Compiling structured entity graph manifests for: {url}")
-        res = request_ollama(prompt, ollama_url, ollama_model)
+        res = request_ai_engine(prompt)
         if res:
             json_str = json.dumps(res)
             cursor.execute("""
