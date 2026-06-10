@@ -31,14 +31,47 @@ def init_db():
     conn.commit()
     return conn
 
-def request_ollama(prompt, url, model):
-    payload = {"model": model, "prompt": prompt, "stream": False, "format": "json"}
-    headers = {"Content-Type": "application/json"}
-    try:
-        req = urllib.request.Request(f"{url}/api/generate", data=json.dumps(payload).encode("utf-8"), headers=headers)
-        with urllib.request.urlopen(req) as res:
-            raw = json.loads(res.read().decode("utf-8"))
-            return json.loads(raw["response"].strip())
-    except Exception as e:
-        print(f"⚠️ Ollama parse extraction failed: {e}")
-        return None
+def request_ai_engine(prompt):
+    """
+    Hybrid AI Gateway: Falls back to Gemini API automatically 
+    if local Ollama is absent or non-responsive.
+    """
+    load_env()
+    ollama_url = os.getenv("OLLAMA_URL")
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    
+    # ── PATH A: TRY LOCAL OLLAMA FIRST ──
+    if ollama_url:
+        model = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+        payload = {"model": model, "prompt": prompt, "stream": False, "format": "json"}
+        headers = {"Content-Type": "application/json"}
+        try:
+            req = urllib.request.Request(f"{ollama_url}/api/generate", data=json.dumps(payload).encode("utf-8"), headers=headers)
+            with urllib.request.urlopen(req, timeout=5) as res:
+                raw = json.loads(res.read().decode("utf-8"))
+                return json.loads(raw["response"].strip())
+        except Exception:
+            print("ℹ️ Local Ollama endpoint offline or missing. Switching to public cloud fallback pipeline...")
+
+    # ── PATH B: FREE TIER CLOUD FALLBACK (GEMINI) ──
+    if gemini_key:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "responseMimeType": "application/json"
+            }
+        }
+        headers = {"Content-Type": "application/json"}
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=10) as res:
+                raw = json.loads(res.read().decode("utf-8"))
+                text_response = raw["candidates"][0]["content"]["parts"][0]["text"]
+                return json.loads(text_response.strip())
+        except Exception as e:
+            print(f"❌ Cloud execution matrix failure: {e}")
+            return None
+
+    print("❌ Critical System Fault: Neither OLLAMA_URL nor GEMINI_API_KEY could be resolved inside parameters.")
+    return None
